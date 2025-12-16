@@ -1,0 +1,8 @@
+name: JITB
+required_headers:
+  - loc
+  - street1
+  - street2
+  - city
+  - st
+  - zip
