@@ -21,6 +21,9 @@ class ParseTab(QWidget):
         super().__init__(parent)
         self.setObjectName("ParseTab")
         
+        # Store current workspace path
+        self.current_workspace = None
+        
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
@@ -286,14 +289,19 @@ class ParseTab(QWidget):
         if index == 1:
             self.refresh_state_list()
     
+    def on_workspace_changed(self, workspace_path) -> None:
+        """Handle workspace change signal from WorkspaceTab"""
+        # Store the workspace path
+        self.current_workspace = workspace_path
+        # Refresh the state list when workspace changes
+        self.refresh_state_list()
+    
     def refresh_state_list(self) -> None:
         """Refresh the state list in Parse View based on current workspace"""
         self.state_list.clear()
         
-        # Try to get workspace path from WorkspaceTab via parent
-        workspace_path = None
-        if self.parent() and hasattr(self.parent(), 'workspace_tab'):
-            workspace_path = self.parent().workspace_tab.current_workspace_path()
+        # Use stored workspace path
+        workspace_path = self.current_workspace
         
         if not workspace_path or not workspace_path.exists():
             return
@@ -319,10 +327,8 @@ class ParseTab(QWidget):
             self.clear_table()
             return
         
-        # Get the workspace path from WorkspaceTab via parent
-        workspace_path = None
-        if self.parent() and hasattr(self.parent(), 'workspace_tab'):
-            workspace_path = self.parent().workspace_tab.current_workspace_path()
+        # Use stored workspace path
+        workspace_path = self.current_workspace
         
         if not workspace_path:
             self.clear_table()

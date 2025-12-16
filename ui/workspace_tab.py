@@ -9,13 +9,16 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QComboBox, QInputDialog
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 
 DEFAULT_BASE = Path.home() / "Documents" / "RoutePlanner"
 
 
 class WorkspaceTab(QWidget):
     """Workspace tab for managing VRPTW problems"""
+    
+    # Signal emitted when workspace selection changes
+    workspace_changed = pyqtSignal(object)  # Emits workspace Path or None
     
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -59,6 +62,7 @@ class WorkspaceTab(QWidget):
         
         self.workspace_combo = QComboBox()
         self.workspace_combo.setMinimumWidth(200)
+        self.workspace_combo.currentIndexChanged.connect(self.on_workspace_changed)
         workspace_row.addWidget(self.workspace_combo, 1)
         
         new_workspace_btn = QPushButton("New Workspace...")
@@ -75,6 +79,11 @@ class WorkspaceTab(QWidget):
         # Initialize client list
         self.refresh_clients()
         self._update_controls_enabled()
+        
+        # Emit initial workspace signal to notify other tabs
+        # Use QTimer to ensure all tabs are fully initialized first
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(100, self.emit_initial_workspace)
     
     def list_clients(self) -> list[str]:
         """List all client directories"""
@@ -124,6 +133,16 @@ class WorkspaceTab(QWidget):
         """Handle client selection change"""
         self.refresh_workspaces()
         self._update_controls_enabled()
+    
+    def on_workspace_changed(self) -> None:
+        """Handle workspace selection change and emit signal"""
+        workspace_path = self.current_workspace_path()
+        self.workspace_changed.emit(workspace_path)
+    
+    def emit_initial_workspace(self) -> None:
+        """Emit initial workspace signal on startup"""
+        workspace_path = self.current_workspace_path()
+        self.workspace_changed.emit(workspace_path)
     
     def on_new_client(self) -> None:
         """Handle new client button click"""
