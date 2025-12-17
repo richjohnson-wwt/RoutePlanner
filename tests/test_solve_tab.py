@@ -18,29 +18,34 @@ class TestSolveTab:
         """Test that haversine distance calculation is accurate."""
         service = SolveService(time_limit_seconds=30)
         
-        # San Francisco to Los Angeles (approx 347 miles)
+        # GIVEN: San Francisco to Los Angeles (approx 347 miles)
         sf_lat, sf_lng = 37.7749, -122.4194
         la_lat, la_lng = 34.0522, -118.2437
         
+        # WHEN: Calculate distance
         distance = service._haversine_distance(sf_lat, sf_lng, la_lat, la_lng)
         
-        # Should be approximately 347 miles (within 10 miles tolerance)
+        # THEN: Should be approximately 347 miles (within 10 miles tolerance)
         assert 337 <= distance <= 357, f"Expected ~347 miles, got {distance:.2f}"
     
     def test_haversine_distance_same_point(self):
         """Test that distance between same point is zero."""
         service = SolveService(time_limit_seconds=30)
         
+        # GIVEN: Same point
         lat, lng = 37.7749, -122.4194
+
+        # WHEN: Calculate distance
         distance = service._haversine_distance(lat, lng, lat, lng)
         
+        # THEN: Should be zero
         assert distance == 0.0
     
     def test_generate_solution_table_data_basic(self, problem_state_workspace):
         """Test generating solution table data from routes."""
         base_dir, state_dir = problem_state_workspace
         
-        # Setup: Create sites with coordinates
+        # GIVEN: Create sites with coordinates
         csv_data = """SiteID,Address,State,Lat,Lng
 Site1,123 Main St,CA,37.7749,-122.4194
 Site2,456 Oak Ave,CA,37.7849,-122.4094
@@ -71,9 +76,11 @@ Site3,789 Pine Rd,CA,37.7949,-122.3994"""
         )
         
         service = SolveService(time_limit_seconds=30)
+        
+        # WHEN: Generate solution table data
         table_data = service.generate_solution_table_data(problem, [route])
         
-        # Assert: Should have 3 rows (one per stop)
+        # THEN: Should have 3 rows (one per stop)
         assert len(table_data) == 3
         
         # Assert: Each row should have 12 columns
@@ -97,7 +104,7 @@ Site3,789 Pine Rd,CA,37.7949,-122.3994"""
         """Test generating solution table data with multiple routes."""
         base_dir, state_dir = problem_state_workspace
         
-        # Setup: Create sites with coordinates and clusters
+        # GIVEN: Create sites with coordinates and clusters
         csv_data = """SiteID,Address,State,Lat,Lng,ClusterID
 Site1,123 Main St,CA,37.7749,-122.4194,1
 Site2,456 Oak Ave,CA,37.7849,-122.4094,1
@@ -115,7 +122,7 @@ Site4,321 Elm St,CA,37.8049,-122.3894,2"""
             base_dir=base_dir
         )
         
-        # Create two test routes
+        # WHEN: Create two test routes
         route1 = Route(
             state_code="CA",
             cluster_id=1,
@@ -143,18 +150,18 @@ Site4,321 Elm St,CA,37.8049,-122.3894,2"""
         service = SolveService(time_limit_seconds=30)
         table_data = service.generate_solution_table_data(problem, [route1, route2])
         
-        # Assert: Should have 4 rows total (2 stops per route)
+        # THEN: Should have 4 rows total (2 stops per route)
         assert len(table_data) == 4
         
-        # Assert: First two rows should be route 1
+        # THEN: First two rows should be route 1
         assert table_data[0][0] == "1"  # route_id
         assert table_data[1][0] == "1"  # route_id
         
-        # Assert: Last two rows should be route 2
+        # THEN: Last two rows should be route 2
         assert table_data[2][0] == "2"  # route_id
         assert table_data[3][0] == "2"  # route_id
         
-        # Assert: Stop sequences should be correct
+        # THEN: Stop sequences should be correct
         assert table_data[0][1] == "0"  # first stop of route 1
         assert table_data[1][1] == "1"  # second stop of route 1
         assert table_data[2][1] == "0"  # first stop of route 2
@@ -164,7 +171,7 @@ Site4,321 Elm St,CA,37.8049,-122.3894,2"""
         """Test that solution table includes travel times and distances."""
         base_dir, state_dir = problem_state_workspace
         
-        # Setup: Create sites with coordinates (about 10 miles apart)
+        # GIVEN: Create sites with coordinates (about 10 miles apart)
         csv_data = """SiteID,Address,State,Lat,Lng
 Site1,Start,CA,37.7749,-122.4194
 Site2,End,CA,37.8749,-122.4194"""
@@ -180,7 +187,7 @@ Site2,End,CA,37.8749,-122.4194"""
             base_dir=base_dir
         )
         
-        # Create a route with 2 stops
+        # WHEN: Create a route with 2 stops
         route = Route(
             state_code="CA",
             cluster_id=1,
@@ -196,14 +203,14 @@ Site2,End,CA,37.8749,-122.4194"""
         service = SolveService(time_limit_seconds=30)
         table_data = service.generate_solution_table_data(problem, [route])
         
-        # Assert: First stop should have travel time to next stop
+        # THEN: First stop should have travel time to next stop
         travel_time_min = table_data[0][10]  # travel_time_min column
         distance_miles = table_data[0][11]   # distance_miles column
         
         assert travel_time_min != ""  # Should have a value
         assert distance_miles != ""   # Should have a value
         
-        # Assert: Last stop should not have travel time (no next stop)
+        # THEN: Last stop should not have travel time (no next stop)
         assert table_data[1][10] == ""  # No travel time
         assert table_data[1][11] == ""  # No distance
     
@@ -211,7 +218,7 @@ Site2,End,CA,37.8749,-122.4194"""
         """Test that saving solution creates a CSV file with correct data."""
         base_dir, state_dir = problem_state_workspace
         
-        # Setup: Create sites with coordinates
+        # GIVEN: Create sites with coordinates
         csv_data = """SiteID,Address,State,Lat,Lng
 Site1,123 Main St,CA,37.7749,-122.4194
 Site2,456 Oak Ave,CA,37.7849,-122.4094"""
@@ -227,7 +234,7 @@ Site2,456 Oak Ave,CA,37.7849,-122.4094"""
             base_dir=base_dir
         )
         
-        # Create a test route
+        # WHEN: Create a test route
         route = Route(
             state_code="CA",
             cluster_id=1,
@@ -243,18 +250,18 @@ Site2,456 Oak Ave,CA,37.7849,-122.4094"""
         service = SolveService(time_limit_seconds=30)
         service._save_solution(problem, [route])
         
-        # Assert: solution.csv should exist
+        # THEN: solution.csv should exist
         solution_path = problem.paths.solution_csv()
         assert solution_path.exists()
         
-        # Assert: CSV should have correct headers and data
+        # THEN: CSV should have correct headers and data
         content = solution_path.read_text()
         assert "route_id" in content
         assert "site_id" in content
         assert "Site1" in content
         assert "Site2" in content
         
-        # Assert: Problem state should be updated
+        # THEN: Problem state should be updated
         assert problem.routes == [route]
         assert problem.stage.name == "SOLVED"
     
@@ -262,7 +269,7 @@ Site2,456 Oak Ave,CA,37.7849,-122.4094"""
         """Test that arrival/departure times progress correctly through stops."""
         base_dir, state_dir = problem_state_workspace
         
-        # Setup: Create sites
+        # GIVEN: Create sites
         csv_data = """SiteID,Address,State,Lat,Lng
 Site1,Start,CA,37.7749,-122.4194
 Site2,Middle,CA,37.7849,-122.4094
@@ -279,7 +286,7 @@ Site3,End,CA,37.7949,-122.3994"""
             base_dir=base_dir
         )
         
-        # Create a route with 3 stops, 1.5 hours total (30 min per stop)
+        # GIVEN: Create a route with 3 stops, 1.5 hours total (30 min per stop)
         route = Route(
             state_code="CA",
             cluster_id=1,
@@ -292,10 +299,11 @@ Site3,End,CA,37.7949,-122.3994"""
             solved_at=datetime.now()
         )
         
+        # WHEN: Generate solution table data    
         service = SolveService(time_limit_seconds=30)
         table_data = service.generate_solution_table_data(problem, [route])
         
-        # Assert: Each stop should have arrival and departure times
+        # THEN: Each stop should have arrival and departure times
         for row in table_data:
             arrival_time = row[7]
             departure_time = row[8]
@@ -304,7 +312,7 @@ Site3,End,CA,37.7949,-122.3994"""
             assert ":" in arrival_time
             assert ":" in departure_time
         
-        # Assert: Departure time of first stop should be before arrival of second stop
+        # THEN: Departure time of first stop should be before arrival of second stop
         # (This is a basic sanity check - times should progress forward)
         first_departure = table_data[0][8]
         second_arrival = table_data[1][7]
