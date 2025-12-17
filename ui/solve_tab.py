@@ -16,8 +16,9 @@ class SolveTab(QWidget):
         super().__init__(parent)
         self.setObjectName("SolveTab")
         
-        # Store current workspace path
+        # Store current workspace path and state
         self.current_workspace = None
+        self.current_state = None
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -41,7 +42,20 @@ class SolveTab(QWidget):
         """)
         layout.addWidget(placeholder, stretch=1)
     
-    def on_workspace_changed(self, workspace_path) -> None:
-        """Handle workspace change signal from WorkspaceTab"""
-        self.current_workspace = workspace_path
-        # TODO: Refresh solve view when workspace changes
+    def _refresh_ui_from_state(self) -> None:
+        """Refresh UI based on current problem state"""
+        pass
+    
+    def _reset_ui(self) -> None:
+        """Reset UI to empty state"""
+        pass
+    
+    def set_problem_state(self, problem_state) -> None:
+        """Set the problem state for this tab"""
+        self.problem_state = problem_state
+        self.setEnabled(problem_state is not None)
+        
+        if problem_state is None:
+            self._reset_ui()
+        else:
+            self._refresh_ui_from_state()

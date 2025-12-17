@@ -12,7 +12,10 @@ source .venv/bin/activate  # On macOS/Linux
 
 2. Install dependencies:
 ```bash
-pip install -r requirements.txt
+uv add pyqt6
+uv add pandas
+uv add pyyaml
+uv add openpyxl
 ```
 
 ## Running the Application
@@ -26,10 +29,11 @@ python main.py
 ```
 RoutePlanner/
 ├── main.py              # Application entry point
-├── gui/                 # GUI components
+├── ui/                 # GUI components
 │   ├── __init__.py
 │   └── main_window.py   # Main application window
-├── requirements.txt     # Python dependencies
+├── services/           # Business logic services
+├── models/             # Data models
 └── README.md           # This file
 ```
 

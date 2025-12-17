@@ -1,0 +1,7 @@
+name: Ascension
+required_headers:
+  - lab name
+  - address (location)
+  - city
+  - state
+  - zip code

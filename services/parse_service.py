@@ -89,15 +89,23 @@ class ParseService:
         columns_to_keep = [h.lower().strip() for h in required_headers]
         df_filtered = df[columns_to_keep]
         
-        # Group by state (st column)
-        if 'st' not in df_filtered.columns:
-            error_msg = "ERROR: 'st' column not found for state grouping"
+        # Determine which column contains state information
+        state_column = None
+        for col in ['st', 'state']:
+            if col in df_filtered.columns:
+                state_column = col
+                break
+        
+        if not state_column:
+            error_msg = "ERROR: No state column found (looking for 'st' or 'state')"
             log(error_msg)
             raise ValueError(error_msg)
         
+        log(f"Using '{state_column}' column for state grouping")
+        
         # Get unique states
-        states = df_filtered['st'].dropna().unique()
-        log(f"Found {len(states)} unique states: {', '.join(sorted(states))}")
+        states = df_filtered[state_column].dropna().unique()
+        log(f"Found {len(states)} unique states: {', '.join(sorted(str(s) for s in states))}")
         
         # Create output directories and write CSV files per state
         state_counts = {}
@@ -109,7 +117,7 @@ class ParseService:
                 continue
             
             # Filter rows for this state
-            state_df = df_filtered[df_filtered['st'] == state]
+            state_df = df_filtered[df_filtered[state_column] == state]
             row_count = len(state_df)
             state_counts[state_str] = row_count
             

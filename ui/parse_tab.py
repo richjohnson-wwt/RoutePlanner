@@ -241,15 +241,12 @@ class ParseTab(QWidget):
             self.log.append(f"ERROR: Config file not found: {config_path}")
             return
         
-        # Get output base path from config name
-        # Extract client name from config (e.g., JITB from jitb.yaml)
-        client_name = config_name.upper()
+        # Get output base path from current workspace
+        output_base_path = self.current_workspace
         
-        # TODO: Get workspace from WorkspaceTab selection
-        # For now, use "phones" as default workspace
-        workspace_name = "phones"
-        
-        output_base_path = Path.home() / "Documents" / "RoutePlanner" / client_name / workspace_name
+        if not output_base_path:
+            self.log.append("ERROR: No workspace selected. Please select a workspace first.")
+            return
         
         self.log.append(f"Starting parse...")
         self.log.append(f"Config: {config_path.name}")
@@ -282,6 +279,13 @@ class ParseTab(QWidget):
         
         # Refresh the state list in Parse View after parsing
         self.refresh_state_list()
+        
+        # Notify control bar to refresh state dropdown
+        if self.parent() and hasattr(self.parent(), 'control_bar'):
+            self.parent().control_bar.refresh_states()
+            # Update enabled state based on current tab
+            current_tab_name = self.parent().tabs.tabText(self.parent().tabs.currentIndex())
+            self.parent().control_bar.update_state_dropdown_for_tab(current_tab_name)
     
     def on_subtab_changed(self, index: int) -> None:
         """Handle sub-tab change to refresh Parse View when it becomes visible"""
