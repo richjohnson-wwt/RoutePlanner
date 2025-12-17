@@ -6,22 +6,22 @@ from dataclasses import dataclass
 class WorkspacePaths:
     root: Path
 
-    def addresses_csv(self, state_code: str) -> Path:
+    def addresses_csv(self) -> Path:
         """Return path to addresses.csv for a given state"""
-        return self.root / state_code / "addresses.csv"
+        return self.root / "addresses.csv"
 
-    def geocoded_csv(self, state_code: str) -> Path:
+    def geocoded_csv(self) -> Path:
         """Return path to geocoded.csv for a given state"""
-        return self.root / state_code / "geocoded.csv"
+        return self.root / "geocoded.csv"
 
-    def clustered_csv(self, state_code: str) -> Path:
+    def clustered_csv(self) -> Path:
         """Return path to clustered.csv for a given state"""
-        return self.root / state_code / "clustered.csv"
+        return self.root / "clustered.csv"
 
-    def solution_csv(self, state_code: str) -> Path:
+    def solution_csv(self) -> Path:
         """Return path to solution.csv for a given state"""
-        return self.root / state_code / "solution.csv"
+        return self.root / "solution.csv"
 
-    def route_map_html(self, state_code: str) -> Path:
+    def route_map_html(self) -> Path:
         """Return path to route_map.html for a given state"""
-        return self.root / state_code / "route_map.html"
+        return self.root / "route_map.html"

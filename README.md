@@ -1,6 +1,10 @@
 # VRPTW Route Planner
 
-A PyQt6-based application for solving Vehicle Routing Problems with Time Windows (VRPTW).
+This application assists the user in solving a route problem. 
+
+It is a PyQt6-based application for solving Vehicle Routing Problems with Time Windows (VRPTW).
+
+The application is driven by a ProblemState object that maintains the state of the problem as it is being solved. Through parsing, geocoding, clustering the sites and solving the route problem.
 
 ## Setup
 

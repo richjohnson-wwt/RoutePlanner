@@ -16,6 +16,8 @@ from .cluster_tab import ClusterTab
 from .solve_tab import SolveTab
 from models.problem_state import ProblemState
 from services.geocode_service import GeocodeService
+from services.geocoder_nominatim import NominatimGeocoder
+from services.geocoder_google import GoogleGeocoder
 
 
 class MainWindow(QMainWindow):
@@ -51,6 +53,9 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.geocode_tab, "Geocode")
         self.tabs.addTab(self.cluster_tab, "Cluster")
         self.tabs.addTab(self.solve_tab, "Solve")
+        
+        # Connect tab change to update state dropdown enabled state
+        self.tabs.currentChanged.connect(self.on_tab_changed)
 
         self._setup_statusbar()
         self.problem_state: ProblemState | None = None
@@ -59,6 +64,9 @@ class MainWindow(QMainWindow):
 
         self.control_bar.workspace_changed.connect(self.on_workspace_or_state_changed)
         self.control_bar.state_changed.connect(self.on_workspace_or_state_changed)
+
+        self.geocode_service = self._create_geocode_service()
+        self.geocode_tab.set_service(self.geocode_service)
     
     def on_workspace_or_state_changed(self, value) -> None:
         """Handle workspace or state change to create new ProblemState"""
@@ -106,3 +114,9 @@ class MainWindow(QMainWindow):
         self.statusbar = QStatusBar()
         self.setStatusBar(self.statusbar)
         self.statusbar.showMessage("Ready")
+
+    def _create_geocode_service(self) -> GeocodeService:
+        # TODO: Add settings UI for geocoder selection
+        # For now, default to Nominatim geocoder
+        geocoder = NominatimGeocoder()
+        return GeocodeService(geocoder)

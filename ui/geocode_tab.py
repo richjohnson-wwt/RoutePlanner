@@ -14,13 +14,13 @@ from models.problem_state import ProblemState
 class GeocodeTab(QWidget):
     """Geocode tab for geocoding addresses"""
     
-    def __init__(self, service: GeocodeService, parent=None) -> None:
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("GeocodeTab")
         
         self.problem_state: ProblemState | None = None
 
-        self.service = service
+        self.service: GeocodeService | None = None
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -68,3 +68,7 @@ class GeocodeTab(QWidget):
         result = self.service.geocode(self.problem_state.sites)
         self.problem_state.geocoded = True
         self._refresh_ui_from_state()
+
+    def set_service(self, service: GeocodeService) -> None:
+        self.service = service
+        
