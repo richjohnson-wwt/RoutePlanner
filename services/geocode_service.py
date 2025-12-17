@@ -1,7 +1,7 @@
 
 from .geocoder_strategy import Geocoder
 from .geocode_cache import GeocodeCache
-from models.problem_state import ProblemState
+from models.problem_state import ProblemState, save_geocoded_csv
 from models.site import Site
 
 class GeocodeService:
@@ -75,4 +75,9 @@ class GeocodeService:
                 )
 
         problem.sites = sites
+        
+        # Persist geocoded results to CSV
+        if problem.paths:
+            save_geocoded_csv(problem.paths.geocoded_csv(), problem.sites)
+            log(f"Saved geocoded results to {problem.paths.geocoded_csv()}")
 

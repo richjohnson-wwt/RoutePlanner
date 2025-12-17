@@ -92,10 +92,8 @@ class ProblemState:
 def load_addresses_csv(path: Path) -> list[Site]:
     """Load sites from addresses.csv (pre-geocoding).
     
-    Handles different column naming conventions from various clients:
-    - ID: 'siteid', 'loc', or first column
-    - State: 'state', 'st'
-    - Address: 'address' or combination of 'street1', 'street2', 'city'
+    Expects standardized column names from ParseService:
+    - site_id, address1, address2, city, state, zip
     """
 
     if not path.exists():
@@ -104,59 +102,34 @@ def load_addresses_csv(path: Path) -> list[Site]:
     df = pd.read_csv(path)
     columns = [col.lower().strip() for col in df.columns]
     
-    # Find ID column (siteid, loc, or first column as fallback)
-    id_col = None
-    for candidate in ['siteid', 'loc']:
-        if candidate in columns:
-            id_col = df.columns[columns.index(candidate)]
-            break
-    if id_col is None:
-        id_col = df.columns[0]  # Use first column as ID
+    # Verify required columns exist
+    if 'site_id' not in columns:
+        raise ValueError(f"{path.name} is missing 'site_id' column")
     
-    # Find state column (state or st)
-    state_col = None
-    for candidate in ['state', 'st']:
-        if candidate in columns:
-            state_col = df.columns[columns.index(candidate)]
-            break
+    if 'state' not in columns:
+        raise ValueError(f"{path.name} is missing 'state' column")
     
-    if state_col is None:
-        raise ValueError(
-            f"{path.name} is missing state column (expected 'state' or 'st')"
-        )
-    
-    # Determine how to build address string
-    has_address = 'address' in columns
-    has_street_parts = 'street1' in columns or 'city' in columns
-    
-    if not has_address and not has_street_parts:
-        raise ValueError(
-            f"{path.name} is missing address information (expected 'address' or 'street1'/'city')"
-        )
+    # Get column references
+    id_col = df.columns[columns.index('site_id')]
+    state_col = df.columns[columns.index('state')]
 
     sites: list[Site] = []
 
     for _, row in df.iterrows():
-        # Get ID
+        # Get ID and state
         site_id = str(row[id_col])
-        
-        # Get state
         state_code = str(row[state_col]).strip()
         
-        # Build address string
-        if has_address:
-            address_col = df.columns[columns.index('address')]
-            address = str(row[address_col]).strip()
-        else:
-            # Build from parts
-            parts = []
-            for col_name in ['street1', 'street2', 'city']:
-                if col_name in columns:
-                    orig_col = df.columns[columns.index(col_name)]
-                    val = str(row[orig_col]).strip()
-                    if val and val.lower() != 'nan':
-                        parts.append(val)
-            address = ', '.join(parts) if parts else site_id
+        # Build address string from address1, address2, city
+        parts = []
+        for col_name in ['address1', 'address2', 'city']:
+            if col_name in columns:
+                orig_col = df.columns[columns.index(col_name)]
+                val = str(row[orig_col]).strip()
+                if val and val.lower() != 'nan':
+                    parts.append(val)
+        
+        address = ', '.join(parts) if parts else site_id
         
         sites.append(
             Site(
@@ -173,9 +146,106 @@ def load_addresses_csv(path: Path) -> list[Site]:
 
 
 def load_geocoded_csv(path: Path) -> list[Site]:
-    """Load geocoded sites from geocoded.csv"""
-    # TODO: Implement
-    return []
+    """Load geocoded sites from geocoded.csv with lat/lng coordinates."""
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    df = pd.read_csv(path)
+    columns = [col.lower().strip() for col in df.columns]
+    
+    # Find ID column
+    id_col = None
+    for candidate in ['siteid', 'loc']:
+        if candidate in columns:
+            id_col = df.columns[columns.index(candidate)]
+            break
+    if id_col is None:
+        id_col = df.columns[0]
+    
+    # Find state column
+    state_col = None
+    for candidate in ['state', 'st']:
+        if candidate in columns:
+            state_col = df.columns[columns.index(candidate)]
+            break
+    
+    if state_col is None:
+        raise ValueError(f"{path.name} is missing state column")
+    
+    # Find address column
+    address_col = None
+    if 'address' in columns:
+        address_col = df.columns[columns.index('address')]
+    
+    # Find lat/lng columns
+    lat_col = None
+    lng_col = None
+    if 'lat' in columns:
+        lat_col = df.columns[columns.index('lat')]
+    if 'lng' in columns:
+        lng_col = df.columns[columns.index('lng')]
+    elif 'lon' in columns:
+        lng_col = df.columns[columns.index('lon')]
+    
+    sites: list[Site] = []
+    
+    for _, row in df.iterrows():
+        site_id = str(row[id_col])
+        state_code = str(row[state_col]).strip()
+        
+        # Get address
+        address = str(row[address_col]).strip() if address_col else site_id
+        
+        # Get coordinates
+        lat = None
+        lng = None
+        if lat_col and pd.notna(row[lat_col]):
+            try:
+                lat = float(row[lat_col])
+            except (ValueError, TypeError):
+                pass
+        
+        if lng_col and pd.notna(row[lng_col]):
+            try:
+                lng = float(row[lng_col])
+            except (ValueError, TypeError):
+                pass
+        
+        sites.append(
+            Site(
+                id=site_id,
+                address=address,
+                state_code=state_code,
+                lat=lat,
+                lng=lng,
+                display_name=address,
+            )
+        )
+    
+    return sites
+
+
+def save_geocoded_csv(path: Path, sites: list[Site]) -> None:
+    """Save geocoded sites to geocoded.csv with lat/lng coordinates."""
+    # Create DataFrame from sites
+    data = []
+    for site in sites:
+        data.append({
+            'SiteID': site.id,
+            'Address': site.address,
+            'State': site.state_code,
+            'Lat': site.lat,
+            'Lng': site.lng,
+            'DisplayName': site.display_name or site.address
+        })
+    
+    df = pd.DataFrame(data)
+    
+    # Ensure parent directory exists
+    path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Write to CSV
+    df.to_csv(path, index=False)
 
 
 def load_clustered_csv(path: Path) -> tuple[list[Site], dict[int, list[Site]]]:

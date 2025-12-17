@@ -1,8 +1,8 @@
 name: JITB
-required_headers:
-  - loc
-  - street1
-  - street2
-  - city
-  - st
-  - zip
+columns:
+  site_id: loc
+  address1: street1
+  address2: street2
+  city: city
+  state: st
+  zip: zip

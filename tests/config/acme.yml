@@ -1,0 +1,8 @@
+name: ACME
+columns:
+  site_id: location
+  address1: mystreet1
+  address2: mystreet2
+  city: mycity
+  state: mystate
+  zip: myzip

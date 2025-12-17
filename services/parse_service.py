@@ -64,47 +64,52 @@ class ParseService:
             log(f"ERROR: Failed to load Excel file: {e}")
             raise
         
-        # Get required headers from config
-        required_headers = self.config.get('required_headers', [])
-        log(f"Required headers: {', '.join(required_headers)}")
+        # Get column mappings from config
+        column_mappings = self.config.get('columns', {})
+        if not column_mappings:
+            error_msg = "ERROR: Config file missing 'columns' mapping"
+            log(error_msg)
+            raise ValueError(error_msg)
+        
+        log(f"Column mappings: {column_mappings}")
         
         # Normalize column names (lowercase, strip whitespace)
         df.columns = df.columns.str.strip().str.lower()
         
-        # Check for required headers
-        missing_headers = []
-        for header in required_headers:
-            header_lower = header.lower().strip()
-            if header_lower not in df.columns:
-                missing_headers.append(header)
+        # Verify all mapped columns exist in the Excel file
+        missing_columns = []
+        for field, excel_col in column_mappings.items():
+            if excel_col:  # Skip empty mappings (like address2 might be empty)
+                excel_col_lower = excel_col.lower().strip()
+                if excel_col_lower not in df.columns:
+                    missing_columns.append(f"{field} -> {excel_col}")
         
-        if missing_headers:
-            error_msg = f"ERROR: Missing required headers: {', '.join(missing_headers)}"
+        if missing_columns:
+            error_msg = f"ERROR: Missing required columns: {', '.join(missing_columns)}"
             log(error_msg)
             raise ValueError(error_msg)
         
-        log("All required headers found")
+        log("All required columns found")
         
-        # Filter to only required columns
-        columns_to_keep = [h.lower().strip() for h in required_headers]
-        df_filtered = df[columns_to_keep]
+        # Create a standardized DataFrame with renamed columns
+        df_standardized = pd.DataFrame()
         
-        # Determine which column contains state information
-        state_column = None
-        for col in ['st', 'state']:
-            if col in df_filtered.columns:
-                state_column = col
-                break
+        for field, excel_col in column_mappings.items():
+            if excel_col:  # Only map non-empty columns
+                excel_col_lower = excel_col.lower().strip()
+                df_standardized[field] = df[excel_col_lower]
         
-        if not state_column:
-            error_msg = "ERROR: No state column found (looking for 'st' or 'state')"
+        # Get the state column for grouping
+        if 'state' not in df_standardized.columns:
+            error_msg = "ERROR: 'state' field not mapped in config"
             log(error_msg)
             raise ValueError(error_msg)
         
+        state_column = 'state'
         log(f"Using '{state_column}' column for state grouping")
         
         # Get unique states
-        states = df_filtered[state_column].dropna().unique()
+        states = df_standardized[state_column].dropna().unique()
         log(f"Found {len(states)} unique states: {', '.join(sorted(str(s) for s in states))}")
         
         # Create output directories and write CSV files per state
@@ -117,7 +122,7 @@ class ParseService:
                 continue
             
             # Filter rows for this state
-            state_df = df_filtered[df_filtered[state_column] == state]
+            state_df = df_standardized[df_standardized[state_column] == state]
             row_count = len(state_df)
             state_counts[state_str] = row_count
             
@@ -125,7 +130,7 @@ class ParseService:
             state_dir = output_base_path / state_str
             state_dir.mkdir(parents=True, exist_ok=True)
             
-            # Write CSV file
+            # Write CSV file with standardized column names
             csv_path = state_dir / "addresses.csv"
             state_df.to_csv(csv_path, index=False)
             log(f"Wrote {row_count} rows to {csv_path}")
