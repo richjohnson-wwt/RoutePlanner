@@ -64,8 +64,16 @@ class ProblemState:
 
         # Resume from most advanced artifact
         if paths.solution_csv().exists():
+            # Load sites first from the underlying data files
+            if paths.clustered_csv().exists():
+                state.sites, state.clusters = load_clustered_csv(paths.clustered_csv())
+            elif paths.geocoded_csv().exists():
+                state.sites = load_geocoded_csv(paths.geocoded_csv())
+            elif paths.sites_csv().exists():
+                state.sites = load_sites_csv(paths.sites_csv())
+            
+            # Then load the solution routes on top
             state.routes = load_solution_csv(paths.solution_csv())
-            state.sites = extract_sites_from_routes(state.routes)
             state.stage = PlanningStage.SOLVED
             return state
 
@@ -412,9 +420,69 @@ def load_clustered_csv(path: Path) -> tuple[list[Site], dict[int, list[Site]]]:
 
 
 def load_solution_csv(path: Path) -> list[Route]:
-    """Load routes from solution.csv"""
-    # TODO: Implement
-    return []
+    """
+    Load routes from solution.csv.
+    
+    The CSV contains stop-by-stop details with columns:
+    route_id, stop_sequence, site_id, cluster_id, vehicle_id, lat, lng,
+    arrival_time, departure_time, service_time_min, travel_time_min, distance_miles
+    
+    Returns:
+        List of Route objects reconstructed from the CSV
+    """
+    import csv
+    from datetime import datetime
+    from collections import defaultdict
+    
+    if not path.exists():
+        return []
+    
+    # Group stops by route_id
+    routes_data = defaultdict(list)
+    
+    with open(path, 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            route_id = int(row['route_id'])
+            routes_data[route_id].append(row)
+    
+    # Reconstruct Route objects
+    routes = []
+    for route_id in sorted(routes_data.keys()):
+        stops = routes_data[route_id]
+        
+        # Sort by stop_sequence to ensure correct order
+        stops.sort(key=lambda x: int(x['stop_sequence']))
+        
+        # Extract route information from first stop
+        first_stop = stops[0]
+        cluster_id = int(first_stop['cluster_id'])
+        vehicle_id = int(first_stop['vehicle_id'])
+        state_code = first_stop.get('state_code', '')  # May not be in CSV
+        
+        # Build sequence of site IDs
+        sequence = [stop['site_id'] for stop in stops]
+        
+        # Calculate total service hours from all stops
+        total_service_minutes = sum(float(stop['service_time_min']) for stop in stops if stop['service_time_min'])
+        total_travel_minutes = sum(float(stop['travel_time_min']) for stop in stops if stop['travel_time_min'])
+        total_hours = (total_service_minutes + total_travel_minutes) / 60.0
+        
+        # Create Route object
+        route = Route(
+            state_code=state_code,
+            cluster_id=cluster_id,
+            vehicle_id=vehicle_id,
+            stops=len(sequence),
+            sequence=sequence,
+            mode="ortools",
+            speed_mph=50.0,  # Default, actual value not stored in CSV
+            service_hours=total_hours,
+            solved_at=datetime.now()  # Use current time since we don't store original solve time
+        )
+        routes.append(route)
+    
+    return routes
 
 
 def extract_sites_from_routes(routes: list[Route]) -> list[Site]:

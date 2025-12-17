@@ -12,6 +12,7 @@ dependencies = [
     "requests>=2.32.5",
     "matplotlib>=3.9.4",
     "scikit-learn>=1.6.1",
+    "ortools>=9.14.6206",
 ]
 
 [project.optional-dependencies]
