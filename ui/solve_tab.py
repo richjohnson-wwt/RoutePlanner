@@ -365,8 +365,8 @@ Configuration:
                      'black', 'lightgray']
             
             # Plot each route
-            for route_idx, route in enumerate(self.problem_state.routes):
-                color = colors[route_idx % len(colors)]
+            for route_idx, route in enumerate(self.problem_state.routes, 1):  # Start at 1 to match solution table
+                color = colors[(route_idx - 1) % len(colors)]
                 route_coords = []
                 
                 # Add markers and collect coordinates for route line
@@ -380,7 +380,7 @@ Configuration:
                     # Create popup with site information
                     popup_html = f"""
                     <div style="font-family: Arial; font-size: 12px;">
-                        <b>Route {route.vehicle_id}</b><br>
+                        <b>Route {route_idx}</b><br>
                         <b>Stop {stop_idx + 1}</b> of {route.stops}<br>
                         <hr style="margin: 5px 0;">
                         <b>Site ID:</b> {site.id}<br>
@@ -399,7 +399,7 @@ Configuration:
                     folium.Marker(
                         location=[site.lat, site.lng],
                         popup=folium.Popup(popup_html, max_width=300),
-                        tooltip=f"Route {route.vehicle_id} - Stop {stop_idx + 1}: {site.id}",
+                        tooltip=f"Route {route_idx} - Stop {stop_idx + 1}: {site.id}",
                         icon=icon
                     ).add_to(route_map)
                 
@@ -410,7 +410,7 @@ Configuration:
                         color=color,
                         weight=3,
                         opacity=0.7,
-                        popup=f"Route {route.vehicle_id} - {route.stops} stops, {route.service_hours:.2f} hours"
+                        popup=f"Route {route_idx} - {route.stops} stops, {route.service_hours:.2f} hours"
                     ).add_to(route_map)
             
             # Add a legend
