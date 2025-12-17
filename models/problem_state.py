@@ -10,6 +10,9 @@ from .site import Site
 from .planning_stage import PlanningStage
 from .workspace_paths import WorkspacePaths
 
+# This object maintains the entire state of the application. Changes made are propogated to the top-level tab (ie geocode, cluster, solve)
+# csv files are only created to persist the work between sessions.
+
 @dataclass
 class ProblemState:
     client: str

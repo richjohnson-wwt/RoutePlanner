@@ -117,6 +117,9 @@ class MainWindow(QMainWindow):
 
     def _create_geocode_service(self) -> GeocodeService:
         # TODO: Add settings UI for geocoder selection
-        # For now, default to Nominatim geocoder
-        geocoder = NominatimGeocoder()
+        # For now, default to Nominatim geocoder with email from settings
+        from PyQt6.QtCore import QSettings
+        settings = QSettings("RoutePlanner", "VRPTW")
+        email = settings.value("nominatim_email", "user@example.com")
+        geocoder = NominatimGeocoder(email=email)
         return GeocodeService(geocoder)
