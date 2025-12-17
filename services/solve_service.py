@@ -386,6 +386,76 @@ class SolveService:
         
         return R * c
     
+    def generate_solution_table_data(self, problem: ProblemState, routes: list[Route]) -> list[list[str]]:
+        """
+        Generate solution table data with stop-by-stop details.
+        
+        Args:
+            problem: ProblemState with sites
+            routes: List of routes to process
+            
+        Returns:
+            List of rows, where each row is a list of strings:
+            [route_id, stop_sequence, site_id, cluster_id, vehicle_id, lat, lng,
+             arrival_time, departure_time, service_time_min, travel_time_min, distance_miles]
+        """
+        from datetime import datetime, timedelta
+        
+        table_data = []
+        site_lookup = {s.id: s for s in problem.sites}
+        
+        for route_idx, route in enumerate(routes, 1):
+            # Start time for this route (9:00 AM)
+            current_time = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
+            
+            # Get service time in minutes (convert from hours)
+            service_time_minutes = (route.service_hours / len(route.sequence)) * 60 if route.sequence else 0
+            
+            for stop_seq, site_id in enumerate(route.sequence):
+                site = site_lookup.get(site_id)
+                
+                # Calculate travel time and distance to next stop
+                travel_time_min = ""
+                distance_miles = ""
+                if stop_seq < len(route.sequence) - 1:
+                    next_site_id = route.sequence[stop_seq + 1]
+                    next_site = site_lookup.get(next_site_id)
+                    if site and next_site and site.lat and site.lng and next_site.lat and next_site.lng:
+                        distance = self._haversine_distance(site.lat, site.lng, next_site.lat, next_site.lng)
+                        travel_time = (distance / route.speed_mph) * 60  # Convert to minutes
+                        travel_time_min = f"{travel_time:.2f}"
+                        distance_miles = f"{distance:.2f}"
+                
+                # Calculate times
+                arrival_time_str = current_time.strftime("%I:%M %p")
+                departure_time = current_time + timedelta(minutes=service_time_minutes)
+                departure_time_str = departure_time.strftime("%I:%M %p")
+                
+                # Create row
+                row = [
+                    str(route_idx),                                                    # route_id
+                    str(stop_seq),                                                     # stop_sequence
+                    site_id,                                                           # site_id
+                    str(route.cluster_id),                                            # cluster_id
+                    str(route.vehicle_id),                                            # vehicle_id
+                    f"{site.lat:.6f}" if site and site.lat else "",                  # lat
+                    f"{site.lng:.6f}" if site and site.lng else "",                  # lng
+                    arrival_time_str,                                                  # arrival_time
+                    departure_time_str,                                                # departure_time
+                    f"{service_time_minutes:.1f}",                                    # service_time_min
+                    travel_time_min,                                                   # travel_time_min
+                    distance_miles                                                     # distance_miles
+                ]
+                table_data.append(row)
+                
+                # Update current time for next stop
+                if travel_time_min:
+                    current_time = departure_time + timedelta(minutes=float(travel_time_min))
+                else:
+                    current_time = departure_time
+        
+        return table_data
+    
     def _save_solution(self, problem: ProblemState, routes: list[Route], log_callback=None) -> None:
         """
         Save solution to CSV file with stop-by-stop details.
@@ -396,7 +466,6 @@ class SolveService:
             log_callback: Optional logging callback
         """
         import csv
-        from datetime import datetime, timedelta
         
         def log(msg: str):
             if log_callback:
@@ -406,6 +475,9 @@ class SolveService:
         
         # Ensure parent directory exists
         solution_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Generate table data using the shared method
+        table_data = self.generate_solution_table_data(problem, routes)
         
         # Write solution CSV with stop-by-stop details
         with open(solution_path, 'w', newline='') as csvfile:
@@ -417,53 +489,22 @@ class SolveService:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             
-            # Write each stop for each route
-            for route_idx, route in enumerate(routes, 1):
-                # Start time for this route (9:00 AM)
-                current_time = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
-                
-                # Get service time in minutes (convert from hours)
-                service_time_minutes = (route.service_hours / len(route.sequence)) * 60 if route.sequence else 0
-                
-                # Create site lookup
-                site_lookup = {s.id: s for s in problem.sites}
-                
-                for stop_seq, site_id in enumerate(route.sequence):
-                    site = site_lookup.get(site_id)
-                    
-                    # Calculate travel time and distance to next stop
-                    travel_time_min = ""
-                    distance_miles = ""
-                    if stop_seq < len(route.sequence) - 1:
-                        next_site_id = route.sequence[stop_seq + 1]
-                        next_site = site_lookup.get(next_site_id)
-                        if site and next_site:
-                            distance = self._haversine_distance(site.lat, site.lng, next_site.lat, next_site.lng)
-                            travel_time = (distance / route.speed_mph) * 60  # Convert to minutes
-                            travel_time_min = f"{travel_time:.2f}"
-                            distance_miles = f"{distance:.2f}"
-                    
-                    # Write row
-                    writer.writerow({
-                        'route_id': route_idx,
-                        'stop_sequence': stop_seq,
-                        'site_id': site_id,
-                        'cluster_id': route.cluster_id,
-                        'vehicle_id': route.vehicle_id,
-                        'lat': f"{site.lat:.6f}" if site and site.lat else "",
-                        'lng': f"{site.lng:.6f}" if site and site.lng else "",
-                        'arrival_time': current_time.strftime("%I:%M %p"),
-                        'departure_time': (current_time + timedelta(minutes=service_time_minutes)).strftime("%I:%M %p"),
-                        'service_time_min': f"{service_time_minutes:.1f}",
-                        'travel_time_min': travel_time_min,
-                        'distance_miles': distance_miles
-                    })
-                    
-                    # Update current time for next stop
-                    if travel_time_min:
-                        current_time += timedelta(minutes=service_time_minutes + float(travel_time_min))
-                    else:
-                        current_time += timedelta(minutes=service_time_minutes)
+            # Write each row
+            for row in table_data:
+                writer.writerow({
+                    'route_id': row[0],
+                    'stop_sequence': row[1],
+                    'site_id': row[2],
+                    'cluster_id': row[3],
+                    'vehicle_id': row[4],
+                    'lat': row[5],
+                    'lng': row[6],
+                    'arrival_time': row[7],
+                    'departure_time': row[8],
+                    'service_time_min': row[9],
+                    'travel_time_min': row[10],
+                    'distance_miles': row[11]
+                })
         
         log(f"Solution saved to {solution_path}")
         

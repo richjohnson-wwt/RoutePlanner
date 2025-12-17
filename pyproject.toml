@@ -13,6 +13,7 @@ dependencies = [
     "matplotlib>=3.9.4",
     "scikit-learn>=1.6.1",
     "ortools>=9.14.6206",
+    "folium>=0.15.0",
 ]
 
 [project.optional-dependencies]
@@ -33,3 +34,6 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+filterwarnings = [
+    "ignore::DeprecationWarning:importlib._bootstrap",
+]

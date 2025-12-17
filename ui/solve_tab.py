@@ -3,6 +3,10 @@ Solve Tab for VRPTW Application
 """
 from __future__ import annotations
 
+import webbrowser
+import tempfile
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QRadioButton,
     QButtonGroup, QComboBox, QPushButton, QLineEdit, QTextEdit, QSizePolicy,
@@ -10,6 +14,12 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDoubleValidator
+
+try:
+    import folium
+    FOLIUM_AVAILABLE = True
+except ImportError:
+    FOLIUM_AVAILABLE = False
 
 from services.solve_service import SolveService
 
@@ -140,6 +150,33 @@ class SolveTab(QWidget):
         self.solve_button.clicked.connect(self._on_solve_clicked)
         layout.addWidget(self.solve_button)
         
+        # View On Map Button
+        self.view_map_button = QPushButton("View On Map")
+        self.view_map_button.setMinimumHeight(40)
+        self.view_map_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                padding: 10px;
+                border-radius: 4px;
+                font-weight: 600;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+            }
+        """)
+        self.view_map_button.clicked.connect(self._on_view_map_clicked)
+        self.view_map_button.setEnabled(False)  # Disabled until routes are available
+        layout.addWidget(self.view_map_button)
+        
         # Add stretch to push everything to the top
         layout.addStretch()
         
@@ -269,100 +306,175 @@ Configuration:
             # Update solution table
             self._update_solution_table(routes)
             
+            # Enable the View On Map button now that we have routes
+            self.view_map_button.setEnabled(True)
+            
         except Exception as e:
             import traceback
             log_callback(f"\nERROR: {str(e)}")
             log_callback(f"\nTraceback:\n{traceback.format_exc()}")
             log_callback("\nSolve failed. Please check the error message above.")
     
+    def _on_view_map_clicked(self) -> None:
+        """Handle View On Map button click - generate and display Folium map"""
+        if not FOLIUM_AVAILABLE:
+            self.solution_log.append("\nERROR: Folium library is not installed.")
+            self.solution_log.append("Please install it with: pip install folium")
+            return
+        
+        if not self.problem_state or not self.problem_state.routes:
+            self.solution_log.append("\nNo routes available to display on map.")
+            return
+        
+        try:
+            self.solution_log.append("\nGenerating map...")
+            
+            # Create a map centered on the average location of all sites
+            all_lats = []
+            all_lngs = []
+            
+            # Collect all coordinates from sites in routes
+            site_dict = {site.id: site for site in self.problem_state.sites}
+            
+            for route in self.problem_state.routes:
+                for site_id in route.sequence:
+                    site = site_dict.get(site_id)
+                    if site and site.lat and site.lng:
+                        all_lats.append(site.lat)
+                        all_lngs.append(site.lng)
+            
+            if not all_lats or not all_lngs:
+                self.solution_log.append("\nERROR: No valid coordinates found in routes.")
+                return
+            
+            # Calculate center
+            center_lat = sum(all_lats) / len(all_lats)
+            center_lng = sum(all_lngs) / len(all_lngs)
+            
+            # Create map
+            route_map = folium.Map(
+                location=[center_lat, center_lng],
+                zoom_start=7,
+                tiles='OpenStreetMap'
+            )
+            
+            # Define colors for different routes
+            colors = ['red', 'blue', 'green', 'purple', 'orange', 'darkred', 
+                     'lightred', 'beige', 'darkblue', 'darkgreen', 'cadetblue', 
+                     'darkpurple', 'pink', 'lightblue', 'lightgreen', 'gray', 
+                     'black', 'lightgray']
+            
+            # Plot each route
+            for route_idx, route in enumerate(self.problem_state.routes):
+                color = colors[route_idx % len(colors)]
+                route_coords = []
+                
+                # Add markers and collect coordinates for route line
+                for stop_idx, site_id in enumerate(route.sequence):
+                    site = site_dict.get(site_id)
+                    if not site or not site.lat or not site.lng:
+                        continue
+                    
+                    route_coords.append([site.lat, site.lng])
+                    
+                    # Create popup with site information
+                    popup_html = f"""
+                    <div style="font-family: Arial; font-size: 12px;">
+                        <b>Route {route.vehicle_id}</b><br>
+                        <b>Stop {stop_idx + 1}</b> of {route.stops}<br>
+                        <hr style="margin: 5px 0;">
+                        <b>Site ID:</b> {site.id}<br>
+                        <b>Address:</b> {site.address}<br>
+                        <b>Cluster:</b> {route.cluster_id}<br>
+                        <b>Coordinates:</b> {site.lat:.6f}, {site.lng:.6f}
+                    </div>
+                    """
+                    
+                    # Different icon for depot (first stop) vs regular stops
+                    if stop_idx == 0:
+                        icon = folium.Icon(color=color, icon='home', prefix='fa')
+                    else:
+                        icon = folium.Icon(color=color, icon='info-sign')
+                    
+                    folium.Marker(
+                        location=[site.lat, site.lng],
+                        popup=folium.Popup(popup_html, max_width=300),
+                        tooltip=f"Route {route.vehicle_id} - Stop {stop_idx + 1}: {site.id}",
+                        icon=icon
+                    ).add_to(route_map)
+                
+                # Draw route line
+                if len(route_coords) > 1:
+                    folium.PolyLine(
+                        route_coords,
+                        color=color,
+                        weight=3,
+                        opacity=0.7,
+                        popup=f"Route {route.vehicle_id} - {route.stops} stops, {route.service_hours:.2f} hours"
+                    ).add_to(route_map)
+            
+            # Add a legend
+            legend_html = f"""
+            <div style="position: fixed; 
+                        top: 10px; right: 10px; 
+                        background-color: white; 
+                        border: 2px solid grey; 
+                        border-radius: 5px;
+                        padding: 10px;
+                        font-family: Arial;
+                        font-size: 12px;
+                        z-index: 9999;">
+                <b>Route Summary</b><br>
+                Total Routes: {len(self.problem_state.routes)}<br>
+                Total Stops: {sum(r.stops for r in self.problem_state.routes)}<br>
+                Total Hours: {sum(r.service_hours for r in self.problem_state.routes):.2f}<br>
+                <hr style="margin: 5px 0;">
+                <small>🏠 = Depot/Start</small>
+            </div>
+            """
+            route_map.get_root().html.add_child(folium.Element(legend_html))
+            
+            # Save to workspace directory for persistence
+            if self.problem_state.paths:
+                # Use the workspace paths to get the route map path
+                map_file = self.problem_state.paths.route_map_html()
+            else:
+                # Fallback to temp directory if paths not available
+                temp_dir = Path(tempfile.gettempdir())
+                map_file = temp_dir / f"route_map_{self.problem_state.state_code}.html"
+            
+            # Ensure directory exists
+            map_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Save the map
+            route_map.save(str(map_file))
+            
+            # Open in browser
+            webbrowser.open(f"file://{map_file}")
+            
+            self.solution_log.append(f"Map saved to: {map_file}")
+            self.solution_log.append("Map opened in browser.")
+            
+        except Exception as e:
+            import traceback
+            self.solution_log.append(f"\nERROR generating map: {str(e)}")
+            self.solution_log.append(f"Traceback:\n{traceback.format_exc()}")
+    
     def _update_solution_table(self, routes: list) -> None:
         """Update the solution table with stop-by-stop route data"""
-        from datetime import datetime, timedelta
-        import math
+        if not self.problem_state:
+            return
         
-        # Calculate total number of stops across all routes
-        total_stops = sum(len(route.sequence) for route in routes)
-        self.solution_table.setRowCount(total_stops)
+        # Get table data from service (business logic layer)
+        table_data = self.solve_service.generate_solution_table_data(self.problem_state, routes)
         
-        current_row = 0
+        # Set table row count
+        self.solution_table.setRowCount(len(table_data))
         
-        for route_idx, route in enumerate(routes):
-            route_id = route_idx + 1
-            
-            # Start time for this route (9:00 AM)
-            current_time = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
-            
-            # Get service time in minutes (convert from hours)
-            service_time_minutes = (route.service_hours / len(route.sequence)) * 60 if route.sequence else 0
-            
-            for stop_seq, site_id in enumerate(route.sequence):
-                # Find the site in problem_state
-                site = None
-                if self.problem_state:
-                    site = next((s for s in self.problem_state.sites if s.id == site_id), None)
-                
-                # Calculate travel time and distance to next stop
-                travel_time_min = ""
-                distance_miles = ""
-                if stop_seq < len(route.sequence) - 1:
-                    next_site_id = route.sequence[stop_seq + 1]
-                    next_site = next((s for s in self.problem_state.sites if s.id == next_site_id), None) if self.problem_state else None
-                    if site and next_site and site.lat and site.lng and next_site.lat and next_site.lng:
-                        # Calculate distance using Haversine formula from solve_service
-                        distance = self.solve_service._haversine_distance(site.lat, site.lng, next_site.lat, next_site.lng)
-                        # Calculate travel time based on speed
-                        travel_time = (distance / route.speed_mph) * 60  # Convert to minutes
-                        travel_time_min = f"{travel_time:.2f}"
-                        distance_miles = f"{distance:.2f}"
-                
-                # Route ID
-                self.solution_table.setItem(current_row, 0, QTableWidgetItem(str(route_id)))
-                
-                # Stop Sequence
-                self.solution_table.setItem(current_row, 1, QTableWidgetItem(str(stop_seq)))
-                
-                # Site ID
-                self.solution_table.setItem(current_row, 2, QTableWidgetItem(site_id))
-                
-                # Cluster ID
-                self.solution_table.setItem(current_row, 3, QTableWidgetItem(str(route.cluster_id)))
-                
-                # Vehicle ID
-                self.solution_table.setItem(current_row, 4, QTableWidgetItem(str(route.vehicle_id)))
-                
-                # Lat/Lng
-                if site:
-                    self.solution_table.setItem(current_row, 5, QTableWidgetItem(f"{site.lat:.6f}" if site.lat else ""))
-                    self.solution_table.setItem(current_row, 6, QTableWidgetItem(f"{site.lng:.6f}" if site.lng else ""))
-                else:
-                    self.solution_table.setItem(current_row, 5, QTableWidgetItem(""))
-                    self.solution_table.setItem(current_row, 6, QTableWidgetItem(""))
-                
-                # Arrival Time
-                arrival_time_str = current_time.strftime("%I:%M %p")
-                self.solution_table.setItem(current_row, 7, QTableWidgetItem(arrival_time_str))
-                
-                # Departure Time (arrival + service time)
-                departure_time = current_time + timedelta(minutes=service_time_minutes)
-                departure_time_str = departure_time.strftime("%I:%M %p")
-                self.solution_table.setItem(current_row, 8, QTableWidgetItem(departure_time_str))
-                
-                # Service Time (min)
-                self.solution_table.setItem(current_row, 9, QTableWidgetItem(f"{service_time_minutes:.1f}"))
-                
-                # Travel Time (min)
-                self.solution_table.setItem(current_row, 10, QTableWidgetItem(travel_time_min))
-                
-                # Distance (miles)
-                self.solution_table.setItem(current_row, 11, QTableWidgetItem(distance_miles))
-                
-                # Update current time for next stop (add service time + travel time)
-                if travel_time_min:
-                    current_time = departure_time + timedelta(minutes=float(travel_time_min))
-                else:
-                    current_time = departure_time
-                
-                current_row += 1
+        # Populate table with data (UI layer only)
+        for row_idx, row_data in enumerate(table_data):
+            for col_idx, value in enumerate(row_data):
+                self.solution_table.setItem(row_idx, col_idx, QTableWidgetItem(value))
         
         # Resize columns to content
         self.solution_table.resizeColumnsToContents()
@@ -377,6 +489,10 @@ Configuration:
                 self.problem_state.stage.name in ["CLUSTERED", "SOLVED"]
             )
             self.solve_button.setEnabled(has_clusters)
+            
+            # Enable view map button if we have routes
+            has_routes = self.problem_state.routes and len(self.problem_state.routes) > 0
+            self.view_map_button.setEnabled(has_routes)
             
             # If we have existing routes (from loaded solution.csv), display them
             if self.problem_state.routes:
@@ -398,6 +514,7 @@ Configuration:
         self.solution_log.clear()
         self.solution_table.setRowCount(0)
         self.solve_button.setEnabled(False)
+        self.view_map_button.setEnabled(False)
     
     def set_problem_state(self, problem_state) -> None:
         """Set the problem state for this tab"""
