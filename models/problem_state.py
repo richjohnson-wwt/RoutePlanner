@@ -226,18 +226,23 @@ def load_geocoded_csv(path: Path) -> list[Site]:
 
 
 def save_geocoded_csv(path: Path, sites: list[Site]) -> None:
-    """Save geocoded sites to geocoded.csv with lat/lng coordinates."""
-    # Create DataFrame from sites
+    """Save successfully geocoded sites to geocoded.csv with lat/lng coordinates.
+    
+    Only saves sites that have valid coordinates (lat and lng are not None).
+    """
+    # Create DataFrame from sites with valid coordinates only
     data = []
     for site in sites:
-        data.append({
-            'SiteID': site.id,
-            'Address': site.address,
-            'State': site.state_code,
-            'Lat': site.lat,
-            'Lng': site.lng,
-            'DisplayName': site.display_name or site.address
-        })
+        # Only include sites that were successfully geocoded
+        if site.lat is not None and site.lng is not None:
+            data.append({
+                'SiteID': site.id,
+                'Address': site.address,
+                'State': site.state_code,
+                'Lat': site.lat,
+                'Lng': site.lng,
+                'DisplayName': site.display_name or site.address
+            })
     
     df = pd.DataFrame(data)
     
@@ -246,6 +251,35 @@ def save_geocoded_csv(path: Path, sites: list[Site]) -> None:
     
     # Write to CSV
     df.to_csv(path, index=False)
+
+
+def save_geocoded_errors_csv(path: Path, sites: list[Site]) -> None:
+    """Save failed geocoding attempts to geocoded-errors.csv.
+    
+    Only saves sites that failed to geocode (lat and lng are None).
+    """
+    # Create DataFrame from sites that failed to geocode
+    data = []
+    for site in sites:
+        # Only include sites that failed to geocode
+        if site.lat is None or site.lng is None:
+            data.append({
+                'site_id': site.id,
+                'address1': site.address.split(',')[0] if ',' in site.address else site.address,
+                'city': site.address.split(',')[1].strip() if ',' in site.address and len(site.address.split(',')) > 1 else '',
+                'state': site.state_code,
+                'error': 'Failed to geocode address'
+            })
+    
+    # Only write file if there are errors
+    if data:
+        df = pd.DataFrame(data)
+        
+        # Ensure parent directory exists
+        path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Write to CSV
+        df.to_csv(path, index=False)
 
 
 def load_clustered_csv(path: Path) -> tuple[list[Site], dict[int, list[Site]]]:

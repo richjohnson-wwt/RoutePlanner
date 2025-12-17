@@ -15,13 +15,31 @@ class MockGeocoder:
     
     name = "mock_geocoder"
     
+    def __init__(self, fail_on_bad_addresses=False):
+        """
+        Initialize mock geocoder.
+        
+        Args:
+            fail_on_bad_addresses: If True, addresses containing "Bad" will fail to geocode
+        """
+        self.fail_on_bad_addresses = fail_on_bad_addresses
+    
     def geocode(self, sites, log_callback=None):
         """Mock geocode that returns predictable results."""
         for site in sites:
-            # Generate mock coordinates based on site ID
-            site.lat = 37.0 + hash(site.id) % 10
-            site.lng = -122.0 - hash(site.id) % 10
-            site.display_name = f"{site.address}, {site.state_code}, USA"
+            # Check if this address should fail
+            if self.fail_on_bad_addresses and "Bad" in site.address:
+                # Leave coordinates as None to simulate geocoding failure
+                site.lat = None
+                site.lng = None
+                site.display_name = None
+                if log_callback:
+                    log_callback(f"Failed to geocode: {site.address}")
+            else:
+                # Generate mock coordinates based on site ID
+                site.lat = 37.0 + hash(site.id) % 10
+                site.lng = -122.0 - hash(site.id) % 10
+                site.display_name = f"{site.address}, {site.state_code}, USA"
         return sites
 
 
@@ -63,6 +81,67 @@ Site2,456 Oak Ave,New York,NY,10001""")
         assert problem.sites[0].lng is not None
         assert problem.sites[1].lat is not None
         assert problem.sites[1].lng is not None
+
+    def test_geocoded_unfound_addresses_are_written_to_error_file(self, problem_state_workspace):
+        """
+        Test that geocoding errors are written to error file.
+        """
+        # GIVEN: addresses.csv that has addresses that cannot be found
+        base_dir, state_dir = problem_state_workspace
+        cache_path = state_dir / "test_cache.db"
+
+        addresses_csv = state_dir / "addresses.csv"
+        addresses_csv.write_text("""site_id,address1,city,state,zip
+Site1,123 Bad Street St,San Francisco,CA,94102
+Site2,456 Good Street St,New York,NY,10001""")
+        
+        problem = ProblemState.from_workspace(
+            client="test_client",
+            workspace="test_workspace",
+            entity_type="site",
+            state_code="CA",
+            base_dir=base_dir
+        )
+        
+        # Verify initial state - no coordinates
+        assert problem.sites[0].lat is None
+        assert problem.sites[1].lat is None
+        
+        # WHEN: Geocode the sites with a geocoder that fails on "Bad" addresses
+        geocoder = MockGeocoder(fail_on_bad_addresses=True)
+        service = GeocodeService(geocoder, cache_path=str(cache_path))
+        service.geocode_problem(problem)
+        
+        # THEN: Site1 (Bad Street) should still have no coordinates
+        assert problem.sites[0].lat is None
+        assert problem.sites[0].lng is None
+        
+        # THEN: Site2 (Good Street) should have coordinates
+        assert problem.sites[1].lat is not None
+        assert problem.sites[1].lng is not None
+        
+        # THEN: geocoded.csv should only contain successfully geocoded sites
+        geocoded_csv = problem.paths.geocoded_csv()
+        assert geocoded_csv.exists(), "geocoded.csv should be created"
+        
+        from models.problem_state import load_geocoded_csv
+        geocoded_sites = load_geocoded_csv(geocoded_csv)
+        assert len(geocoded_sites) == 1, "Only successfully geocoded sites should be in geocoded.csv"
+        assert geocoded_sites[0].id == "Site2", "Site2 should be in geocoded.csv"
+        
+        # THEN: geocoded-errors.csv should contain failed sites
+        error_csv = state_dir / "geocoded-errors.csv"
+        assert error_csv.exists(), "geocoded-errors.csv should be created for failed geocoding"
+        
+        import pandas as pd
+        error_df = pd.read_csv(error_csv)
+        assert len(error_df) == 1, "Failed site should be in error file"
+        assert error_df.iloc[0]['site_id'] == "Site1", "Site1 should be in error file"
+        assert "Bad Street" in error_df.iloc[0]['address1'], "Error file should contain the failed address"
+        
+            
+        
+        
     
     def test_geocode_with_cache_hit(self, problem_state_workspace):
         """

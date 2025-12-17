@@ -1,7 +1,7 @@
 
 from .geocoder_strategy import Geocoder
 from .geocode_cache import GeocodeCache
-from models.problem_state import ProblemState, save_geocoded_csv
+from models.problem_state import ProblemState, save_geocoded_csv, save_geocoded_errors_csv
 from models.site import Site
 
 class GeocodeService:
@@ -78,6 +78,16 @@ class GeocodeService:
         
         # Persist geocoded results to CSV
         if problem.paths:
+            # Save successfully geocoded sites
             save_geocoded_csv(problem.paths.geocoded_csv(), problem.sites)
             log(f"Saved geocoded results to {problem.paths.geocoded_csv()}")
+            
+            # Save failed geocoding attempts to error file
+            error_csv_path = problem.paths.geocoded_csv().parent / "geocoded-errors.csv"
+            save_geocoded_errors_csv(error_csv_path, problem.sites)
+            
+            # Count failures for logging
+            failed_count = sum(1 for site in problem.sites if site.lat is None or site.lng is None)
+            if failed_count > 0:
+                log(f"Saved {failed_count} failed geocoding attempts to {error_csv_path}")
 
