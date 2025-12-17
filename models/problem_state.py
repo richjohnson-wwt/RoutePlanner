@@ -282,6 +282,33 @@ def save_geocoded_errors_csv(path: Path, sites: list[Site]) -> None:
         df.to_csv(path, index=False)
 
 
+def save_clustered_csv(path: Path, sites: list[Site]) -> None:
+    """Save clustered sites to clustered.csv with cluster assignments.
+    
+    Saves sites with their cluster_id assignments.
+    """
+    # Create DataFrame from sites
+    data = []
+    for site in sites:
+        data.append({
+            'SiteID': site.id,
+            'Address': site.address,
+            'State': site.state_code,
+            'Lat': site.lat,
+            'Lng': site.lng,
+            'DisplayName': site.display_name or site.address,
+            'cluster_id': site.cluster_id if site.cluster_id is not None else -1
+        })
+    
+    df = pd.DataFrame(data)
+    
+    # Ensure parent directory exists
+    path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Write to CSV
+    df.to_csv(path, index=False)
+
+
 def load_clustered_csv(path: Path) -> tuple[list[Site], dict[int, list[Site]]]:
     """Load clustered sites from clustered.csv"""
     # TODO: Implement

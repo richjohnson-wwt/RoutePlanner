@@ -50,3 +50,12 @@ RoutePlanner/
 ## Development
 
 This application is under active development. Architecture and features will be added incrementally.
+
+
+In the /client/workspace/{state}/cluster_prefs.json file, there is a per_state_k object that contains the number of clusters (k) and the selection method (auto or manual) for each state. This json is written or overwritten on each Cluster button click.
+{
+  "algorithm": "kmeans",
+  "k": 8,
+  "selection": "auto",   // or "manual"
+  "seed": 42
+}
