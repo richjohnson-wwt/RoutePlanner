@@ -296,9 +296,15 @@ class SolveService:
             sequence = []
             total_distance_miles = 0
             
+            # Skip the depot (first node) - it's just the start/end point, not a stop
+            depot_node = manager.IndexToNode(index)
+            index = solution.Value(routing.NextVar(index))
+            
             while not routing.IsEnd(index):
                 node = manager.IndexToNode(index)
-                sequence.append(sites[node].id)
+                # Only add non-depot nodes to the sequence
+                if node != depot_node:
+                    sequence.append(sites[node].id)
                 previous_index = index
                 index = solution.Value(routing.NextVar(index))
                 if not routing.IsEnd(index):

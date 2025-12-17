@@ -491,7 +491,7 @@ Configuration:
             self.solve_button.setEnabled(has_clusters)
             
             # Enable view map button if we have routes
-            has_routes = self.problem_state.routes and len(self.problem_state.routes) > 0
+            has_routes = bool(self.problem_state.routes and len(self.problem_state.routes) > 0)
             self.view_map_button.setEnabled(has_routes)
             
             # If we have existing routes (from loaded solution.csv), display them
