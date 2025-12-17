@@ -44,7 +44,7 @@ class ControlBar(QWidget):
         
         self.client_combo = QComboBox()
         self.client_combo.setMinimumWidth(150)
-        self.client_combo.currentIndexChanged.connect(self.on_client_changed)
+        # Signal connection moved to after restoration
         client_layout.addWidget(self.client_combo)
         
         new_client_btn = QPushButton("New...")
@@ -62,7 +62,7 @@ class ControlBar(QWidget):
         
         self.workspace_combo = QComboBox()
         self.workspace_combo.setMinimumWidth(150)
-        self.workspace_combo.currentIndexChanged.connect(self.on_workspace_changed)
+        # Signal connection moved to after restoration
         workspace_layout.addWidget(self.workspace_combo)
         
         new_workspace_btn = QPushButton("New...")
@@ -93,6 +93,11 @@ class ControlBar(QWidget):
         self.refresh_clients()
         self._update_controls_enabled()
         self._restore_selections()
+        
+        # Connect signals AFTER restoration to prevent overwriting saved settings
+        self.client_combo.currentIndexChanged.connect(self.on_client_changed)
+        self.workspace_combo.currentIndexChanged.connect(self.on_workspace_changed)
+        self.state_combo.currentTextChanged.connect(self.on_state_changed)
         
         # Emit initial signals
         from PyQt6.QtCore import QTimer
@@ -199,40 +204,43 @@ class ControlBar(QWidget):
     
     def _restore_selections(self) -> None:
         """Restore selections from QSettings"""
+        # Block signals during restoration to prevent premature saves
+        self.client_combo.blockSignals(True)
+        self.workspace_combo.blockSignals(True)
+        self.state_combo.blockSignals(True)
+        
         # Restore client
         last_client = self.settings.value("last_client", "")
         if last_client:
             index = self.client_combo.findText(last_client)
             if index >= 0:
                 self.client_combo.setCurrentIndex(index)
+                # Manually refresh workspaces for the restored client
+                self.refresh_workspaces()
         
         # Restore workspace
         last_workspace = self.settings.value("last_workspace", "")
         if last_workspace:
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(50, lambda: self._restore_workspace(last_workspace))
+            index = self.workspace_combo.findText(last_workspace)
+            if index >= 0:
+                self.workspace_combo.setCurrentIndex(index)
+                # Manually refresh states for the restored workspace
+                self.refresh_states()
         
         # Restore state
         last_state = self.settings.value("last_state", "")
         if last_state:
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(100, lambda: self._restore_state(last_state))
-    
-    def _restore_workspace(self, workspace_name: str) -> None:
-        """Helper to restore workspace selection"""
-        index = self.workspace_combo.findText(workspace_name)
-        if index >= 0:
-            self.workspace_combo.setCurrentIndex(index)
-    
-    def _restore_state(self, state_code: str) -> None:
-        """Helper to restore state selection"""
-        # First refresh states to ensure dropdown is populated with actual states
-        self.refresh_states()
+            index = self.state_combo.findText(last_state)
+            if index >= 0:
+                self.state_combo.setCurrentIndex(index)
         
-        # Only restore if the state actually exists in the workspace
-        index = self.state_combo.findText(state_code)
-        if index >= 0:
-            self.state_combo.setCurrentIndex(index)
+        # Re-enable signals
+        self.client_combo.blockSignals(False)
+        self.workspace_combo.blockSignals(False)
+        self.state_combo.blockSignals(False)
+        
+        # Update controls enabled state
+        self._update_controls_enabled()
     
     def _update_controls_enabled(self) -> None:
         """Update enabled state of controls based on selections"""

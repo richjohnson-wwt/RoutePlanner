@@ -24,6 +24,9 @@ pytest tests/
 To run tests for a specific tab:
 ```bash
 pytest tests/test_geocode_tab.py
+pytest tests/test_cluster_tab.py
+
+python3 -m pytest tests/test_cluster_tab.py -v
 ```
 
 To run with verbose output:
@@ -39,6 +42,7 @@ pytest tests/ --cov=. --cov-report=html
 Run single test
 ```bash
 uv run pytest tests/test_parse_tab.py::TestParseTab::test_parse_excel -v
+uv run pytest tests/test_cluster_tab.py::TestClusterTab::test_cluster_sites_with_manual_k -v
 ```
 
 ## Test Fixtures

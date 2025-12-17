@@ -311,8 +311,104 @@ def save_clustered_csv(path: Path, sites: list[Site]) -> None:
 
 def load_clustered_csv(path: Path) -> tuple[list[Site], dict[int, list[Site]]]:
     """Load clustered sites from clustered.csv"""
-    # TODO: Implement
-    return [], {}
+    if not path.exists():
+        raise FileNotFoundError(path)
+    
+    df = pd.read_csv(path)
+    columns = [col.lower().strip() for col in df.columns]
+    
+    # Find required columns
+    id_col = None
+    for candidate in ['siteid', 'site_id', 'loc']:
+        if candidate in columns:
+            id_col = df.columns[columns.index(candidate)]
+            break
+    if id_col is None:
+        id_col = df.columns[0]
+    
+    # Find state column
+    state_col = None
+    for candidate in ['state', 'st']:
+        if candidate in columns:
+            state_col = df.columns[columns.index(candidate)]
+            break
+    
+    # Find address column
+    address_col = None
+    for candidate in ['address', 'displayname']:
+        if candidate in columns:
+            address_col = df.columns[columns.index(candidate)]
+            break
+    
+    # Find lat/lng columns
+    lat_col = None
+    lng_col = None
+    if 'lat' in columns:
+        lat_col = df.columns[columns.index('lat')]
+    if 'lng' in columns:
+        lng_col = df.columns[columns.index('lng')]
+    elif 'lon' in columns:
+        lng_col = df.columns[columns.index('lon')]
+    
+    # Find cluster_id column
+    cluster_col = None
+    for candidate in ['cluster_id', 'clusterid', 'cluster']:
+        if candidate in columns:
+            cluster_col = df.columns[columns.index(candidate)]
+            break
+    
+    sites: list[Site] = []
+    clusters: dict[int, list[Site]] = {}
+    
+    for _, row in df.iterrows():
+        site_id = str(row[id_col])
+        state_code = str(row[state_col]).strip() if state_col else ""
+        address = str(row[address_col]).strip() if address_col else site_id
+        
+        # Get coordinates
+        lat = None
+        lng = None
+        if lat_col and pd.notna(row[lat_col]):
+            try:
+                lat = float(row[lat_col])
+            except (ValueError, TypeError):
+                pass
+        
+        if lng_col and pd.notna(row[lng_col]):
+            try:
+                lng = float(row[lng_col])
+            except (ValueError, TypeError):
+                pass
+        
+        # Get cluster_id
+        cluster_id = None
+        if cluster_col and pd.notna(row[cluster_col]):
+            try:
+                cluster_id = int(row[cluster_col])
+                if cluster_id < 0:
+                    cluster_id = None
+            except (ValueError, TypeError):
+                pass
+        
+        site = Site(
+            id=site_id,
+            address=address,
+            state_code=state_code,
+            lat=lat,
+            lng=lng,
+            display_name=address,
+            cluster_id=cluster_id,
+        )
+        
+        sites.append(site)
+        
+        # Add to clusters dict
+        if cluster_id is not None:
+            if cluster_id not in clusters:
+                clusters[cluster_id] = []
+            clusters[cluster_id].append(site)
+    
+    return sites, clusters
 
 
 def load_solution_csv(path: Path) -> list[Route]:

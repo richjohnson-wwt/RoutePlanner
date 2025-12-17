@@ -254,8 +254,12 @@ class ClusterTab(QWidget):
         # Clear previous plot
         self.ax.clear()
         
-        # Separate sites by cluster (if clustered) or plot all together
-        sites_with_coords = [s for s in self.problem_state.sites if s.lat is not None and s.lng is not None]
+        # Filter sites by the selected state and only include those with coordinates
+        selected_state = self.problem_state.state_code
+        sites_with_coords = [
+            s for s in self.problem_state.sites 
+            if s.lat is not None and s.lng is not None and s.state_code == selected_state
+        ]
         
         if not sites_with_coords:
             self.ax.text(0.5, 0.5, 'No geocoded sites to display', 
@@ -303,7 +307,9 @@ class ClusterTab(QWidget):
             self.sites_table.setRowCount(0)
             return
         
-        sites = self.problem_state.sites
+        # Filter sites by the selected state
+        selected_state = self.problem_state.state_code
+        sites = [s for s in self.problem_state.sites if s.state_code == selected_state]
         self.sites_table.setRowCount(len(sites))
         
         for row, site in enumerate(sites):

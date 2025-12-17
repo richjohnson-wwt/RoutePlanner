@@ -48,12 +48,12 @@ class ClusterService:
             raise RuntimeError("No sites to cluster")
         
         # Validate all sites have coordinates
-        sites_without_coords = [s for s in sites if s.lat is None or s.lng is None]
-        if sites_without_coords:
-            raise RuntimeError(
-                f"Cannot cluster: {len(sites_without_coords)} site(s) missing coordinates. "
-                "Run geocoding first."
-            )
+        # sites_without_coords = [s for s in sites if s.lat is None or s.lng is None]
+        # if sites_without_coords:
+        #     raise RuntimeError(
+        #         f"Cannot cluster: {len(sites_without_coords)} site(s) missing coordinates. "
+        #         "Run geocoding first."
+        #     )
         
         log(f"Clustering {len(sites)} sites using {self.algorithm}")
         

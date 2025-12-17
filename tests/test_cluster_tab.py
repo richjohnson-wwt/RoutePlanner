@@ -79,3 +79,119 @@ Site6,333 Cedar Rd,CA,34.0722,-118.2237,Los Angeles""")
         df = pd.read_csv(clustered_csv)
         assert 'cluster_id' in df.columns.str.lower()
         assert len(df) == 6, "All sites should be in clustered.csv"
+    
+    def test_load_clustered_csv_with_state_filtering(self, problem_state_workspace):
+        """
+        Test that clustered.csv is loaded correctly and state filtering works.
+        This tests the integration of load_clustered_csv() with state filtering.
+        """
+        # GIVEN: A clustered.csv with sites from multiple states
+        base_dir, state_dir = problem_state_workspace
+        
+        clustered_csv = state_dir / "clustered.csv"
+        clustered_csv.write_text("""SiteID,Address,State,Lat,Lng,DisplayName,cluster_id
+Site1,123 Main St,CA,37.7749,-122.4194,San Francisco,0
+Site2,456 Oak Ave,CA,37.7849,-122.4094,San Francisco,0
+Site3,789 Pine Rd,CA,37.7949,-122.3994,San Francisco,1
+Site4,111 Elm St,TX,29.7604,-95.3698,Houston,0
+Site5,222 Maple Ave,TX,29.7704,-95.3598,Houston,1
+Site6,333 Cedar Rd,NY,40.7128,-74.0060,New York,2""")
+        
+        # WHEN: Load ProblemState for CA state
+        problem = ProblemState.from_workspace(
+            client="test_client",
+            workspace="test_workspace",
+            entity_type="site",
+            state_code="CA",
+            base_dir=base_dir
+        )
+        
+        # THEN: All sites should be loaded (including non-CA sites)
+        assert len(problem.sites) == 6, "All sites from clustered.csv should be loaded"
+        assert problem.stage.name == "CLUSTERED", "Stage should be CLUSTERED"
+        
+        # THEN: Sites should have cluster_id assigned
+        assert all(site.cluster_id is not None for site in problem.sites)
+        
+        # THEN: Clusters dict should be populated correctly
+        assert problem.clusters is not None
+        assert len(problem.clusters) == 3, "Should have 3 clusters (0, 1, 2)"
+        assert 0 in problem.clusters
+        assert 1 in problem.clusters
+        assert 2 in problem.clusters
+        
+        # THEN: When filtering by CA state (as cluster tab does)
+        ca_sites = [s for s in problem.sites if s.state_code == "CA"]
+        assert len(ca_sites) == 3, "Should have 3 CA sites"
+        
+        # Verify CA sites have correct cluster assignments
+        ca_cluster_ids = set(s.cluster_id for s in ca_sites)
+        assert ca_cluster_ids == {0, 1}, "CA sites should be in clusters 0 and 1"
+        
+        # THEN: Verify specific site data
+        site1 = next(s for s in problem.sites if s.id == "Site1")
+        assert site1.state_code == "CA"
+        assert site1.cluster_id == 0
+        assert site1.lat == 37.7749
+        assert site1.lng == -122.4194
+        
+        site4 = next(s for s in problem.sites if s.id == "Site4")
+        assert site4.state_code == "TX"
+        assert site4.cluster_id == 0
+        
+        # THEN: Verify cluster groupings
+        cluster_0_sites = problem.clusters[0]
+        assert len(cluster_0_sites) == 3, "Cluster 0 should have 3 sites"
+        cluster_0_ids = {s.id for s in cluster_0_sites}
+        assert cluster_0_ids == {"Site1", "Site2", "Site4"}
+    
+    def test_load_clustered_csv_handles_missing_cluster_ids(self, problem_state_workspace):
+        """
+        Test that load_clustered_csv() handles sites with missing or invalid cluster_ids.
+        """
+        # GIVEN: A clustered.csv with some missing/invalid cluster_ids
+        base_dir, state_dir = problem_state_workspace
+        
+        clustered_csv = state_dir / "clustered.csv"
+        clustered_csv.write_text("""SiteID,Address,State,Lat,Lng,DisplayName,cluster_id
+Site1,123 Main St,CA,37.7749,-122.4194,San Francisco,0
+Site2,456 Oak Ave,CA,37.7849,-122.4094,San Francisco,1
+Site3,789 Pine Rd,CA,37.7949,-122.3994,San Francisco,-1
+Site4,111 Elm St,CA,34.0522,-118.2437,Los Angeles,
+Site5,222 Maple Ave,CA,34.0622,-118.2337,Los Angeles,invalid""")
+        
+        # WHEN: Load ProblemState
+        problem = ProblemState.from_workspace(
+            client="test_client",
+            workspace="test_workspace",
+            entity_type="site",
+            state_code="CA",
+            base_dir=base_dir
+        )
+        
+        # THEN: Sites with valid cluster_ids should be loaded correctly
+        assert len(problem.sites) == 5
+        
+        site1 = next(s for s in problem.sites if s.id == "Site1")
+        assert site1.cluster_id == 0
+        
+        site2 = next(s for s in problem.sites if s.id == "Site2")
+        assert site2.cluster_id == 1
+        
+        # Sites with invalid cluster_ids should have None
+        site3 = next(s for s in problem.sites if s.id == "Site3")
+        assert site3.cluster_id is None, "Negative cluster_id should be treated as None"
+        
+        site4 = next(s for s in problem.sites if s.id == "Site4")
+        assert site4.cluster_id is None, "Empty cluster_id should be None"
+        
+        site5 = next(s for s in problem.sites if s.id == "Site5")
+        assert site5.cluster_id is None, "Invalid cluster_id should be None"
+        
+        # THEN: Only sites with valid cluster_ids should be in clusters dict
+        assert problem.clusters is not None
+        assert len(problem.clusters) == 2, "Should have 2 clusters (0, 1)"
+        assert 0 in problem.clusters
+        assert 1 in problem.clusters
+        assert len(problem.clusters[0]) == 1
+        assert len(problem.clusters[1]) == 1
