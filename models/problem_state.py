@@ -271,10 +271,23 @@ def save_geocoded_errors_csv(path: Path, sites: list[Site]) -> None:
     for site in sites:
         # Only include sites that failed to geocode
         if site.lat is None or site.lng is None:
+            # Parse address parts
+            parts = [p.strip() for p in site.address.split(',')]
+            
+            # Extract city: typically second-to-last part (before state)
+            # Address format: street, additional_info, city, state
+            city = ''
+            if len(parts) >= 3:
+                # If we have at least 3 parts, city is second-to-last (before state)
+                city = parts[-2]
+            elif len(parts) == 2:
+                # If only 2 parts, second part might be city or state
+                city = parts[1]
+            
             data.append({
                 'site_id': site.id,
-                'address1': site.address.split(',')[0] if ',' in site.address else site.address,
-                'city': site.address.split(',')[1].strip() if ',' in site.address and len(site.address.split(',')) > 1 else '',
+                'address1': parts[0] if parts else site.address,
+                'city': city,
                 'state': site.state_code,
                 'error': 'Failed to geocode address'
             })

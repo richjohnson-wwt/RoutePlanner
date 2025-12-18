@@ -296,19 +296,26 @@ class SolveService:
             sequence = []
             total_distance_miles = 0
             
-            # Skip the depot (first node) - it's just the start/end point, not a stop
+            # Get the depot node (starting point)
             depot_node = manager.IndexToNode(index)
+            
+            # Add depot to sequence - it's a site that needs to be visited
+            sequence.append(sites[depot_node].id)
+            
+            # Move to next node
+            previous_index = index
             index = solution.Value(routing.NextVar(index))
             
+            # Visit all remaining nodes in the route
             while not routing.IsEnd(index):
                 node = manager.IndexToNode(index)
-                # Only add non-depot nodes to the sequence
-                if node != depot_node:
-                    sequence.append(sites[node].id)
+                sequence.append(sites[node].id)
+                
+                # Calculate distance from previous to current
+                total_distance_miles += distance_matrix[manager.IndexToNode(previous_index)][manager.IndexToNode(index)]
+                
                 previous_index = index
                 index = solution.Value(routing.NextVar(index))
-                if not routing.IsEnd(index):
-                    total_distance_miles += distance_matrix[manager.IndexToNode(previous_index)][manager.IndexToNode(index)]
             
             # Skip empty routes (vehicle not used)
             if len(sequence) == 0:

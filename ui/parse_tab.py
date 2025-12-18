@@ -284,8 +284,15 @@ class ParseTab(QWidget):
         if self.parent() and hasattr(self.parent(), 'control_bar'):
             self.parent().control_bar.refresh_states()
             # Update enabled state based on current tab
+            # This ensures the dropdown is properly enabled/disabled for the current tab
             current_tab_name = self.parent().tabs.tabText(self.parent().tabs.currentIndex())
             self.parent().control_bar.update_state_dropdown_for_tab(current_tab_name)
+            
+            # If states were found, also trigger a state selection to load the first state
+            if self.parent().control_bar.state_combo.count() > 0:
+                first_state = self.parent().control_bar.state_combo.itemText(0)
+                if first_state and first_state != "<no states>":
+                    self.parent().control_bar.state_combo.setCurrentText(first_state)
     
     def on_subtab_changed(self, index: int) -> None:
         """Handle sub-tab change to refresh Parse View when it becomes visible"""

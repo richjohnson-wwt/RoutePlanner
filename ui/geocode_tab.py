@@ -206,7 +206,9 @@ class GeocodeTab(QWidget):
             if workspace_dir.exists():
                 states = []
                 for p in workspace_dir.iterdir():
-                    if p.is_dir() and len(p.name) == 2:  # State codes are 2 letters
+                    # Accept any directory (not just 2-letter codes)
+                    # to support both full state names and state codes
+                    if p.is_dir():
                         # Check if geocoded.csv exists
                         geocoded_csv = p / "geocoded.csv"
                         if geocoded_csv.exists():

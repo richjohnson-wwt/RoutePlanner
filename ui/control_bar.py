@@ -119,19 +119,28 @@ class ControlBar(QWidget):
     def list_states(self) -> list[str]:
         """List all states with addresses.csv in current workspace"""
         workspace_path = self.current_workspace_path()
+        print(f"DEBUG list_states: workspace_path = {workspace_path}")
         if not workspace_path or not workspace_path.exists():
+            print(f"DEBUG list_states: workspace_path doesn't exist or is None")
             return []
         
         states = []
         try:
+            print(f"DEBUG list_states: Scanning {workspace_path} for state directories...")
             for p in sorted(workspace_path.iterdir()):
+                print(f"DEBUG list_states:   Found: {p.name} (is_dir={p.is_dir()})")
                 if p.is_dir():
                     csv_path = p / "addresses.csv"
+                    print(f"DEBUG list_states:     Checking {csv_path} exists: {csv_path.exists()}")
                     if csv_path.exists():
                         states.append(p.name)
-        except Exception:
-            pass
+                        print(f"DEBUG list_states:     Added state: {p.name}")
+        except Exception as e:
+            print(f"DEBUG list_states: Exception: {e}")
+            import traceback
+            traceback.print_exc()
         
+        print(f"DEBUG list_states: Found {len(states)} states: {states}")
         return states
     
     def refresh_clients(self) -> None:
@@ -166,28 +175,39 @@ class ControlBar(QWidget):
     
     def refresh_states(self) -> None:
         """Refresh the state dropdown based on current workspace"""
+        print(f"DEBUG refresh_states: Called")
         self.state_combo.clear()
         states = self.list_states()
+        print(f"DEBUG refresh_states: list_states returned {len(states)} states: {states}")
         
         if not states:
+            print(f"DEBUG refresh_states: No states found, adding '<no states>' and disabling")
             self.state_combo.addItem("<no states>")
             self.state_combo.setEnabled(False)
         else:
+            print(f"DEBUG refresh_states: Adding {len(states)} states to dropdown")
             self.state_combo.addItems(states)
-            # Don't enable yet - will be enabled based on current tab
-            self.state_combo.setEnabled(False)
+            # Keep current enabled state - let update_state_dropdown_for_tab control it
+            # Don't force disable here as it prevents enabling when switching tabs
+            print(f"DEBUG refresh_states: Dropdown now has {self.state_combo.count()} items")
     
     def update_state_dropdown_for_tab(self, tab_name: str) -> None:
         """Update state dropdown enabled state based on current tab"""
+        print(f"DEBUG update_state_dropdown_for_tab: tab_name='{tab_name}'")
+        
         # State dropdown is disabled on Parse tab
         if tab_name == "Parse":
             self.state_combo.setEnabled(False)
             return
         
-        # On other tabs, enable if there are states available
-        states = self.list_states()
-        has_states = len(states) > 0
+        # On other tabs, refresh states to ensure we have the latest list
+        # This fixes timing issues where files might not be written yet after parsing
+        self.refresh_states()
+        
+        # Enable if there are states available
+        has_states = self.state_combo.count() > 0 and self.state_combo.itemText(0) != "<no states>"
         self.state_combo.setEnabled(has_states)
+        print(f"DEBUG update_state_dropdown_for_tab: has_states={has_states}, enabled={has_states}")
     
     def _save_selections(self) -> None:
         """Save current selections to QSettings"""
@@ -319,10 +339,15 @@ class ControlBar(QWidget):
         client = self.client_combo.currentText()
         workspace = self.workspace_combo.currentText()
         
+        print(f"DEBUG current_workspace_path: client='{client}', workspace='{workspace}'")
+        
         if (not client or client == "<no clients>") or (not workspace or workspace == "<no workspaces>"):
+            print(f"DEBUG current_workspace_path: Returning None (invalid selections)")
             return None
         
-        return self.base_path / client / workspace
+        path = self.base_path / client / workspace
+        print(f"DEBUG current_workspace_path: Returning {path}")
+        return path
     
     @staticmethod
     def _sanitize_name(name: str) -> str:
